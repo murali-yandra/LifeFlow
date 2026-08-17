@@ -1,5 +1,6 @@
 import type { AppData } from "@/types";
 import { buildSeed } from "./seed";
+import { DEFAULT_MOOD_TYPES, legacyValueToId } from "./mood";
 
 const KEY = "lifeflow:data:v1";
 const THEME_KEY = "lifeflow:theme";
@@ -47,6 +48,8 @@ export function clearData(): AppData {
     goals: [],
     moods: [],
     journal: [],
+    moodTypes: DEFAULT_MOOD_TYPES,
+    pinnedHabits: [],
     version: 1,
     preferences: buildSeed().preferences,
   };
@@ -78,11 +81,47 @@ export function saveTheme(mode: string): void {
 /** Fill in any missing fields so older / partial payloads stay valid. */
 function normalize(data: Partial<AppData>): AppData {
   const base = buildSeed();
+  const moodTypes =
+    data.moodTypes && data.moodTypes.length > 0
+      ? data.moodTypes
+      : DEFAULT_MOOD_TYPES;
+
+  // Migrate mood entries: old shape stored a numeric `mood`; new stores `moodId`.
+  const moods = (data.moods ?? []).map((m) => {
+    const anyM = m as unknown as { moodId?: string; mood?: number };
+    return {
+      id: m.id,
+      date: m.date,
+      note: m.note ?? "",
+      moodId: anyM.moodId ?? legacyValueToId(anyM.mood ?? 3),
+    };
+  });
+
+  const journal = (data.journal ?? []).map((j) => {
+    const anyJ = j as unknown as { moodId?: string | null; mood?: number | null };
+    const moodId =
+      anyJ.moodId !== undefined
+        ? anyJ.moodId
+        : typeof anyJ.mood === "number"
+          ? legacyValueToId(anyJ.mood)
+          : null;
+    return {
+      id: j.id,
+      date: j.date,
+      title: j.title,
+      content: j.content,
+      tags: j.tags ?? [],
+      moodId,
+    };
+  });
+
   return {
     habits: data.habits ?? [],
     goals: data.goals ?? [],
-    moods: data.moods ?? [],
-    journal: data.journal ?? [],
+    moods,
+    journal,
+    moodTypes,
+    pinnedHabits: data.pinnedHabits ?? [],
     version: data.version ?? 1,
     preferences: {
       ...base.preferences,

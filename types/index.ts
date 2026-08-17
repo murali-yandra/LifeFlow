@@ -68,13 +68,21 @@ export interface Goal {
   history: { date: string; value: number }[];
 }
 
-/** 1 (Bad) … 5 (Great). */
-export type MoodScore = 1 | 2 | 3 | 4 | 5;
+/**
+ * A user-customizable mood. The list is ordered best → worst; a mood's numeric
+ * "value" for charts is derived from its position (top = highest).
+ */
+export interface MoodType {
+  id: string;
+  label: string;
+  icon: IconName; // a lucide icon name (see lib/mood.ts)
+  color: string; // hex
+}
 
 export interface MoodEntry {
   id: string;
   date: string; // YYYY-MM-DD (one entry per day)
-  mood: MoodScore;
+  moodId: string; // references MoodType.id
   note: string;
 }
 
@@ -83,7 +91,7 @@ export interface JournalEntry {
   date: string; // ISO datetime
   title: string;
   content: string;
-  mood: MoodScore | null;
+  moodId: string | null; // references MoodType.id
   tags: string[];
 }
 
@@ -106,6 +114,10 @@ export interface AppData {
   goals: Goal[];
   moods: MoodEntry[];
   journal: JournalEntry[];
+  /** User-customizable mood palette, ordered best → worst. */
+  moodTypes: MoodType[];
   preferences: Preferences;
+  /** Habit ids pinned to the dashboard preview (max 5). Empty = auto (top 5). */
+  pinnedHabits: string[];
   version: number;
 }

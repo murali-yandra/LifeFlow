@@ -38,6 +38,7 @@ export function RadialTracker({
   showDayLabels = true,
   center,
   className,
+  animate = true,
 }: {
   habits: Habit[];
   month: Date;
@@ -49,6 +50,7 @@ export function RadialTracker({
   showDayLabels?: boolean;
   center?: React.ReactNode;
   className?: string;
+  animate?: boolean;
 }) {
   const [offset, setOffset] = useState(0);
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -72,7 +74,7 @@ export function RadialTracker({
     [size, numDays, visibleCount],
   );
 
-  const { cx, cy, outerR, innerR, ringThickness, startAngle, anglePerDay, gap } =
+  const { cx, cy, outerR, innerR, ringThickness, startAngle, anglePerDay } =
     layout;
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -133,14 +135,16 @@ export function RadialTracker({
           );
         })}
 
-        {/* Cells */}
+        {/* Cells — a dot per habit×day, with a transparent sector hit area */}
         {visible.map((habit, bi) => {
           const color = accentBase(habit.color);
           const rOut = outerR - bi * ringThickness;
           const rIn = rOut - ringThickness;
-          const padR = ringThickness * gap * 0.5;
-          const padA = anglePerDay * gap * 0.5;
+          const midR = (rOut + rIn) / 2;
           const completed = new Set(habit.completions);
+          // Dot sized to fit both the ring thickness and the angular arc length.
+          const arcLen = midR * ((anglePerDay * Math.PI) / 180);
+          const dotR = Math.max(1.6, Math.min(9, Math.min(ringThickness, arcLen) * 0.34));
 
           return Array.from({ length: numDays }).map((_, di) => {
             const date = new Date(year, mon, di + 1);
@@ -150,55 +154,59 @@ export function RadialTracker({
             const scheduled = isScheduled(habit, date);
             const isHover = hover?.bi === bi && hover?.di === di;
 
-            const d = sectorPath(
-              cx,
-              cy,
-              rIn + padR - (isHover ? 1 : 0),
-              rOut - padR + (isHover ? 1 : 0),
-              startAngle + di * anglePerDay + padA - (isHover ? 0.5 : 0),
-              startAngle + (di + 1) * anglePerDay - padA + (isHover ? 0.5 : 0),
-            );
+            const a1 = startAngle + di * anglePerDay;
+            const a2 = startAngle + (di + 1) * anglePerDay;
+            const hit = sectorPath(cx, cy, rIn, rOut, a1, a2);
+            const c = polar(cx, cy, midR, (a1 + a2) / 2);
+
+            const baseR = done ? dotR : dotR * 0.46;
+            const r = isHover ? baseR + 1.6 : baseR;
 
             return (
-              <path
-                key={`${habit.id}-${di}`}
-                d={d}
-                fill={done ? color : "transparent"}
-                fillOpacity={done ? (future ? 0.4 : 1) : 0}
-                stroke={
-                  isHover
-                    ? color
-                    : done
-                      ? "transparent"
-                      : "rgb(var(--line))"
-                }
-                strokeWidth={isHover ? 2 : 1}
-                strokeOpacity={done ? 1 : scheduled ? 0.8 : 0.4}
-                className={cn(
-                  !future && (interactive || onSurfaceClick) && "cursor-pointer",
-                )}
-                style={{ transition: "fill-opacity 0.2s" }}
-                onMouseEnter={(e) => {
-                  const rect = wrapRef.current?.getBoundingClientRect();
-                  setHover({
-                    bi,
-                    di,
-                    x: rect ? e.clientX - rect.left : 0,
-                    y: rect ? e.clientY - rect.top : 0,
-                  });
-                }}
-                onMouseMove={(e) => {
-                  const rect = wrapRef.current?.getBoundingClientRect();
-                  setHover((h) =>
-                    h ? { ...h, x: rect ? e.clientX - rect.left : 0, y: rect ? e.clientY - rect.top : 0 } : h,
-                  );
-                }}
-                onClick={() => {
-                  if (future) return;
-                  if (interactive && onToggle) onToggle(habit.id, key);
-                  else onSurfaceClick?.();
-                }}
-              />
+              <g key={`${habit.id}-${di}`}>
+                <path
+                  d={hit}
+                  fill="transparent"
+                  className={cn(
+                    !future && (interactive || onSurfaceClick) && "cursor-pointer",
+                  )}
+                  onMouseEnter={(e) => {
+                    const rect = wrapRef.current?.getBoundingClientRect();
+                    setHover({
+                      bi,
+                      di,
+                      x: rect ? e.clientX - rect.left : 0,
+                      y: rect ? e.clientY - rect.top : 0,
+                    });
+                  }}
+                  onMouseMove={(e) => {
+                    const rect = wrapRef.current?.getBoundingClientRect();
+                    setHover((h) =>
+                      h ? { ...h, x: rect ? e.clientX - rect.left : 0, y: rect ? e.clientY - rect.top : 0 } : h,
+                    );
+                  }}
+                  onClick={() => {
+                    if (future) return;
+                    if (interactive && onToggle) onToggle(habit.id, key);
+                    else onSurfaceClick?.();
+                  }}
+                />
+                <circle
+                  className={animate ? "radial-dot" : undefined}
+                  cx={c.x}
+                  cy={c.y}
+                  r={r}
+                  fill={done ? color : "rgb(var(--ink-muted))"}
+                  fillOpacity={done ? (future ? 0.4 : 1) : scheduled ? 0.3 : 0.14}
+                  stroke={isHover ? color : "none"}
+                  strokeWidth={isHover ? 1.5 : 0}
+                  style={{
+                    pointerEvents: "none",
+                    transition: "r 0.12s ease-out",
+                    animationDelay: animate ? `${(di * 0.016 + bi * 0.014).toFixed(3)}s` : undefined,
+                  }}
+                />
+              </g>
             );
           });
         })}

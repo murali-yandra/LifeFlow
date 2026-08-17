@@ -4,10 +4,10 @@ import type {
   Habit,
   JournalEntry,
   MoodEntry,
-  MoodScore,
 } from "@/types";
 import { addDays, toKey } from "./dates";
 import { isScheduled } from "./calculations";
+import { DEFAULT_MOOD_TYPES, legacyValueToId } from "./mood";
 import { uid } from "./utils";
 
 // ── Deterministic PRNG so the seeded demo is stable across reloads ───────────
@@ -182,14 +182,14 @@ export function buildSeed(today: Date = new Date()): AppData {
   const moods: MoodEntry[] = [];
   // Two weeks of hand-tuned history (oldest → today) that rises and dips
   // naturally and ends on a high note to match today's journal entry.
-  const moodSeq: MoodScore[] = [4, 3, 4, 5, 4, 3, 4, 3, 4, 4, 5, 4, 4, 5, 5];
+  const moodSeq = [4, 3, 4, 5, 4, 3, 4, 3, 4, 4, 5, 4, 4, 5, 5];
   for (let i = 14; i >= 0; i--) {
     const d = addDays(today, -i);
     const score = moodSeq[14 - i];
     moods.push({
       id: uid("mood"),
       date: toKey(d),
-      mood: score,
+      moodId: legacyValueToId(score),
       note: i === 0 ? "Feeling steady and focused today." : "",
     });
   }
@@ -201,7 +201,7 @@ export function buildSeed(today: Date = new Date()): AppData {
       title: "A productive day",
       content:
         "Kept the streak alive — every habit done before noon. The morning routine really sets the tone; by the time I sat down for deep work I already felt ahead. Small actions, repeated.",
-      mood: 5,
+      moodId: legacyValueToId(5),
       tags: ["productivity", "fitness"],
     },
     {
@@ -210,7 +210,7 @@ export function buildSeed(today: Date = new Date()): AppData {
       title: "Slower, but steady",
       content:
         "Energy dipped a little but I still showed up for the essentials. Learning to be okay with 'good enough' days instead of chasing perfect ones.",
-      mood: 3,
+      moodId: legacyValueToId(3),
       tags: ["reflection", "balance"],
     },
     {
@@ -219,7 +219,7 @@ export function buildSeed(today: Date = new Date()): AppData {
       title: "Finished another book",
       content:
         "Eighth book of the year done. Reading before bed has quietly become my favorite part of the day. Two-thirds of the way to the goal.",
-      mood: 4,
+      moodId: legacyValueToId(4),
       tags: ["reading", "goals"],
     },
   ];
@@ -229,6 +229,8 @@ export function buildSeed(today: Date = new Date()): AppData {
     goals,
     moods,
     journal,
+    moodTypes: DEFAULT_MOOD_TYPES,
+    pinnedHabits: [],
     version: 1,
     preferences: {
       name: "Murali",

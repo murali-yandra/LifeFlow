@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { NotebookPen, Plus, Search } from "lucide-react";
-import type { JournalEntry, MoodScore } from "@/types";
+import type { JournalEntry } from "@/types";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/ui/Empty";
 import { PageSkeleton } from "@/components/ui/Skeleton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { JournalEditor } from "@/components/journal/JournalEditor";
-import { MOODS, mood as moodDef } from "@/lib/mood";
+import { findMoodType, getMoodIcon, moodSoft } from "@/lib/mood";
 import { formatLong, fromKey, toKey } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ export default function JournalPage() {
   const { toast } = useToast();
 
   const [query, setQuery] = useState("");
-  const [moodFilter, setMoodFilter] = useState<MoodScore | "all">("all");
+  const [moodFilter, setMoodFilter] = useState<string>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<JournalEntry | null>(null);
 
@@ -38,7 +38,7 @@ export default function JournalPage() {
           j.title.toLowerCase().includes(q) ||
           j.content.toLowerCase().includes(q) ||
           j.tags.some((t) => t.includes(q));
-        const matchesMood = moodFilter === "all" || j.mood === moodFilter;
+        const matchesMood = moodFilter === "all" || j.moodId === moodFilter;
         return matchesQuery && matchesMood;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -51,7 +51,7 @@ export default function JournalPage() {
       date: new Date().toISOString(),
       title: "",
       content: "",
-      mood: null,
+      moodId: null,
       tags: [],
     });
     setEditingId(entry.id);
@@ -92,24 +92,28 @@ export default function JournalPage() {
             <FilterChip active={moodFilter === "all"} onClick={() => setMoodFilter("all")}>
               All
             </FilterChip>
-            {MOODS.map((m) => (
+            {data.moodTypes.map((m) => {
+              const Icon = getMoodIcon(m.icon);
+              const on = moodFilter === m.id;
+              return (
               <button
-                key={m.score}
-                onClick={() => setMoodFilter(m.score)}
+                key={m.id}
+                onClick={() => setMoodFilter(m.id)}
                 title={m.label}
                 className={cn(
                   "grid h-8 w-8 place-items-center rounded-lg border transition-all",
-                  moodFilter === m.score ? "border-transparent" : "border-line hover:bg-surface-2",
+                  on ? "border-transparent" : "border-line hover:bg-surface-2",
                 )}
                 style={
-                  moodFilter === m.score
-                    ? { backgroundColor: m.soft, color: m.color }
+                  on
+                    ? { backgroundColor: moodSoft(m.color), color: m.color }
                     : { color: "rgb(var(--ink-muted))" }
                 }
               >
-                <m.icon size={17} />
+                <Icon size={17} />
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -134,7 +138,8 @@ export default function JournalPage() {
       ) : (
         <div className="columns-1 gap-4 sm:columns-2 xl:columns-3">
           {entries.map((j, i) => {
-            const md = j.mood ? moodDef(j.mood) : null;
+            const md = findMoodType(data.moodTypes, j.moodId);
+            const MdIcon = md ? getMoodIcon(md.icon) : null;
             return (
               <motion.button
                 key={j.id}
@@ -156,12 +161,12 @@ export default function JournalPage() {
                   </p>
                 )}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {md && (
+                  {md && MdIcon && (
                     <span
                       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                      style={{ backgroundColor: md.soft, color: md.color }}
+                      style={{ backgroundColor: moodSoft(md.color), color: md.color }}
                     >
-                      <md.icon size={12} /> {md.label}
+                      <MdIcon size={12} /> {md.label}
                     </span>
                   )}
                   {j.tags.map((t) => (

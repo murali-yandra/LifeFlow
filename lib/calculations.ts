@@ -1,5 +1,6 @@
-import type { Goal, Habit, MoodEntry } from "@/types";
+import type { Goal, Habit, MoodEntry, MoodType } from "@/types";
 import { addDays, diffDays, fromKey, toKey } from "./dates";
+import { moodValue } from "./mood";
 
 /** Is a habit scheduled on the given date, per its frequency? */
 export function isScheduled(habit: Habit, date: Date): boolean {
@@ -214,9 +215,11 @@ export function daysRemaining(goal: Goal): number {
 
 // ── Mood ─────────────────────────────────────────────────────────────────────
 
-export function averageMood(entries: MoodEntry[]): number {
+export function averageMood(entries: MoodEntry[], types: MoodType[]): number {
   if (entries.length === 0) return 0;
-  return entries.reduce((s, e) => s + e.mood, 0) / entries.length;
+  return (
+    entries.reduce((s, e) => s + moodValue(types, e.moodId), 0) / entries.length
+  );
 }
 
 export function moodForDate(entries: MoodEntry[], key: string): MoodEntry | undefined {

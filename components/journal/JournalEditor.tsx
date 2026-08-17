@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { JournalEntry, MoodScore } from "@/types";
+import type { JournalEntry } from "@/types";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
-import { MOODS } from "@/lib/mood";
+import { getMoodIcon, moodSoft } from "@/lib/mood";
+import { useApp } from "@/context/AppContext";
 import { formatLong, fromKey } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,8 @@ export function JournalEditor({
   onChange: (patch: Partial<JournalEntry>) => void;
   onDelete: () => void;
 }) {
+  const { data } = useApp();
+  const moodTypes = data.moodTypes;
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [tagInput, setTagInput] = useState("");
@@ -100,23 +103,26 @@ export function JournalEditor({
           <div className="mb-2 text-[13px] font-medium text-ink-soft">
             How did the day feel?
           </div>
-          <div className="flex gap-2">
-            {MOODS.map((m) => {
-              const on = entry.mood === m.score;
+          <div className="flex flex-wrap gap-2">
+            {moodTypes.map((m) => {
+              const on = entry.moodId === m.id;
+              const Icon = getMoodIcon(m.icon);
               return (
                 <button
-                  key={m.score}
-                  onClick={() =>
-                    onChange({ mood: on ? null : (m.score as MoodScore) })
-                  }
+                  key={m.id}
+                  onClick={() => onChange({ moodId: on ? null : m.id })}
                   title={m.label}
                   className={cn(
                     "grid h-11 w-11 place-items-center rounded-xl border transition-all",
                     on ? "border-transparent" : "border-line hover:bg-surface-2",
                   )}
-                  style={on ? { backgroundColor: m.soft, color: m.color } : { color: "rgb(var(--ink-muted))" }}
+                  style={
+                    on
+                      ? { backgroundColor: moodSoft(m.color), color: m.color }
+                      : { color: "rgb(var(--ink-muted))" }
+                  }
                 >
-                  <m.icon size={22} />
+                  <Icon size={22} />
                 </button>
               );
             })}

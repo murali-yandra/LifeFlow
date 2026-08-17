@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { MoodEntry } from "@/types";
+import type { MoodEntry, MoodType } from "@/types";
 import { Card } from "@/components/ui/Card";
-import { mood as moodDef } from "@/lib/mood";
+import { findMoodType, getMoodIcon, moodSoft } from "@/lib/mood";
 import {
   addMonths,
   diffDays,
@@ -18,11 +18,13 @@ import { cn } from "@/lib/utils";
 
 export function MoodCalendar({
   moods,
+  types,
   weekStartsMonday,
   selected,
   onSelect,
 }: {
   moods: MoodEntry[];
+  types: MoodType[];
   weekStartsMonday: boolean;
   selected: Date;
   onSelect: (d: Date) => void;
@@ -30,7 +32,7 @@ export function MoodCalendar({
   const [view, setView] = useState(() => new Date(selected));
   const cells = monthGrid(view, weekStartsMonday);
   const labels = weekdayLabels(weekStartsMonday);
-  const map = new Map(moods.map((m) => [m.date, m.mood]));
+  const map = new Map(moods.map((m) => [m.date, m.moodId]));
 
   return (
     <Card>
@@ -71,8 +73,8 @@ export function MoodCalendar({
         {cells.map((d, i) => {
           const key = toKey(d);
           const inMonth = d.getMonth() === view.getMonth();
-          const score = map.get(key);
-          const def = score ? moodDef(score) : null;
+          const def = findMoodType(types, map.get(key));
+          const Icon = def ? getMoodIcon(def.icon) : null;
           const future = diffDays(d, new Date()) > 0;
           const sel = isSameDay(d, selected);
           return (
@@ -87,10 +89,10 @@ export function MoodCalendar({
                 !def && !future && "bg-surface-2/50 text-ink-muted hover:bg-surface-2",
                 future && "text-ink-muted/40",
               )}
-              style={def ? { backgroundColor: def.soft } : undefined}
+              style={def ? { backgroundColor: moodSoft(def.color) } : undefined}
             >
-              {def ? (
-                <def.icon size={18} color={def.color} />
+              {def && Icon ? (
+                <Icon size={18} color={def.color} />
               ) : (
                 d.getDate()
               )}

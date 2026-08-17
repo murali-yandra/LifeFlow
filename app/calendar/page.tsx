@@ -9,7 +9,7 @@ import { NotificationBell } from "@/components/layout/NotificationBell";
 import { Card } from "@/components/ui/Card";
 import { PageSkeleton } from "@/components/ui/Skeleton";
 import { DaySummary } from "@/components/calendar/DaySummary";
-import { mood as moodDef } from "@/lib/mood";
+import { findMoodType, getMoodIcon } from "@/lib/mood";
 import { dayCompletion, isScheduled } from "@/lib/calculations";
 import {
   addMonths,
@@ -31,7 +31,7 @@ export default function CalendarPage() {
   const cells = useMemo(() => monthGrid(view, mondayStart), [view, mondayStart]);
   const labels = weekdayLabels(mondayStart);
   const moodMap = useMemo(
-    () => new Map(data.moods.map((m) => [m.date, m.mood])),
+    () => new Map(data.moods.map((m) => [m.date, m.moodId])),
     [data.moods],
   );
   const journalDays = useMemo(
@@ -99,8 +99,8 @@ export default function CalendarPage() {
               (h) => !h.archived && isScheduled(h, d),
             ).length;
             const comp = scheduled > 0 && !future ? dayCompletion(data.habits, d) : 0;
-            const score = moodMap.get(key);
-            const md = score ? moodDef(score) : null;
+            const md = findMoodType(data.moodTypes, moodMap.get(key));
+            const MdIcon = md ? getMoodIcon(md.icon) : null;
             const hasJournal = journalDays.has(key);
             const today = isToday(d);
 
@@ -131,7 +131,7 @@ export default function CalendarPage() {
                     {hasJournal && (
                       <NotebookPen size={12} className="text-ink-muted" />
                     )}
-                    {md && <md.icon size={14} color={md.color} />}
+                    {md && MdIcon && <MdIcon size={14} color={md.color} />}
                   </div>
                 </div>
 
@@ -161,8 +161,10 @@ export default function CalendarPage() {
         </span>
         <span className="flex items-center gap-1.5">
           {(() => {
-            const g = moodDef(5);
-            return <g.icon size={14} color={g.color} />;
+            const g = data.moodTypes[0];
+            if (!g) return null;
+            const Icon = getMoodIcon(g.icon);
+            return <Icon size={14} color={g.color} />;
           })()}{" "}
           Mood logged
         </span>

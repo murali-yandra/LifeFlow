@@ -14,7 +14,7 @@ import type {
   Habit,
   JournalEntry,
   MoodEntry,
-  MoodScore,
+  MoodType,
   Preferences,
 } from "@/types";
 import {
@@ -45,13 +45,22 @@ interface AppCtx {
   setGoalProgress: (id: string, current: number) => void;
 
   // mood
-  setMood: (dateKey: string, mood: MoodScore, note: string) => void;
+  setMood: (dateKey: string, moodId: string, note: string) => void;
   deleteMood: (dateKey: string) => void;
+
+  // mood types (customizable palette)
+  addMoodType: (type: Omit<MoodType, "id">) => MoodType;
+  updateMoodType: (id: string, patch: Partial<MoodType>) => void;
+  deleteMoodType: (id: string) => void;
+  moveMoodType: (id: string, dir: -1 | 1) => void;
 
   // journal
   addJournal: (j: Omit<JournalEntry, "id">) => JournalEntry;
   updateJournal: (id: string, patch: Partial<JournalEntry>) => void;
   deleteJournal: (id: string) => void;
+
+  // dashboard
+  setPinnedHabits: (ids: string[]) => void;
 
   // preferences + data
   updatePreferences: (patch: Partial<Preferences>) => void;
@@ -196,14 +205,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ── Mood ────────────────────────────────────────────────────────────────
-  const setMood = useCallback<AppCtx["setMood"]>((dateKey, moodScore, note) => {
+  const setMood = useCallback<AppCtx["setMood"]>((dateKey, moodId, note) => {
     setData((d) => {
       const existing = d.moods.find((m) => m.date === dateKey);
       const moods = existing
         ? d.moods.map((m) =>
-            m.date === dateKey ? { ...m, mood: moodScore, note } : m,
+            m.date === dateKey ? { ...m, moodId, note } : m,
           )
-        : [...d.moods, { id: uid("mood"), date: dateKey, mood: moodScore, note }];
+        : [...d.moods, { id: uid("mood"), date: dateKey, moodId, note }];
       const next = { ...d, moods };
       saveData(next);
       return next;
@@ -213,6 +222,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteMood = useCallback<AppCtx["deleteMood"]>((dateKey) => {
     setData((d) => {
       const next = { ...d, moods: d.moods.filter((m) => m.date !== dateKey) };
+      saveData(next);
+      return next;
+    });
+  }, []);
+
+  // ── Mood types (customizable palette) ───────────────────────────────────
+  const addMoodType = useCallback<AppCtx["addMoodType"]>((type) => {
+    const created: MoodType = { ...type, id: uid("mood-type") };
+    setData((d) => {
+      const next = { ...d, moodTypes: [...d.moodTypes, created] };
+      saveData(next);
+      return next;
+    });
+    return created;
+  }, []);
+
+  const updateMoodType = useCallback<AppCtx["updateMoodType"]>((id, patch) => {
+    setData((d) => {
+      const next = {
+        ...d,
+        moodTypes: d.moodTypes.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      };
+      saveData(next);
+      return next;
+    });
+  }, []);
+
+  /** Deleting a mood type also removes entries that used it. */
+  const deleteMoodType = useCallback<AppCtx["deleteMoodType"]>((id) => {
+    setData((d) => {
+      const next = {
+        ...d,
+        moodTypes: d.moodTypes.filter((t) => t.id !== id),
+        moods: d.moods.filter((m) => m.moodId !== id),
+        journal: d.journal.map((j) =>
+          j.moodId === id ? { ...j, moodId: null } : j,
+        ),
+      };
+      saveData(next);
+      return next;
+    });
+  }, []);
+
+  const moveMoodType = useCallback<AppCtx["moveMoodType"]>((id, dir) => {
+    setData((d) => {
+      const idx = d.moodTypes.findIndex((t) => t.id === id);
+      const to = idx + dir;
+      if (idx === -1 || to < 0 || to >= d.moodTypes.length) return d;
+      const arr = [...d.moodTypes];
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      const next = { ...d, moodTypes: arr };
       saveData(next);
       return next;
     });
@@ -248,6 +308,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // ── Dashboard ───────────────────────────────────────────────────────────
+  const setPinnedHabits = useCallback<AppCtx["setPinnedHabits"]>((ids) => {
+    setData((d) => {
+      const next = { ...d, pinnedHabits: ids.slice(0, 5) };
+      saveData(next);
+      return next;
+    });
+  }, []);
+
   // ── Preferences + data ──────────────────────────────────────────────────
   const updatePreferences = useCallback<AppCtx["updatePreferences"]>((patch) => {
     setData((d) => {
@@ -278,9 +347,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setGoalProgress,
       setMood,
       deleteMood,
+      addMoodType,
+      updateMoodType,
+      deleteMoodType,
+      moveMoodType,
       addJournal,
       updateJournal,
       deleteJournal,
+      setPinnedHabits,
       updatePreferences,
       resetAll,
       clearAll,
@@ -300,9 +374,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setGoalProgress,
       setMood,
       deleteMood,
+      addMoodType,
+      updateMoodType,
+      deleteMoodType,
+      moveMoodType,
       addJournal,
       updateJournal,
       deleteJournal,
+      setPinnedHabits,
       updatePreferences,
       resetAll,
       clearAll,

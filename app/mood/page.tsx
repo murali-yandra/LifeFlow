@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import type { MoodScore } from "@/types";
+import { Pencil, Settings2, Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -13,65 +13,70 @@ import { Textarea } from "@/components/ui/Field";
 import { PageSkeleton } from "@/components/ui/Skeleton";
 import { MoodCalendar } from "@/components/mood/MoodCalendar";
 import { MoodTrendChart, type MoodPoint } from "@/components/mood/MoodTrendChart";
-import { MOODS, mood as moodDef } from "@/lib/mood";
+import { MoodTypeManager } from "@/components/mood/MoodTypeManager";
+import { findMoodType, getMoodIcon, moodSoft, moodValue } from "@/lib/mood";
 import { addDays, formatLong, fromKey, isToday, toKey } from "@/lib/dates";
 import { averageMood } from "@/lib/calculations";
 import { cn } from "@/lib/utils";
 
 export default function MoodPage() {
-  const { data, hydrated, setMood } = useApp();
+  const { data, hydrated, setMood, deleteMood } = useApp();
   const { toast } = useToast();
+  const types = data.moodTypes;
   const [selected, setSelected] = useState(() => new Date());
   const [note, setNote] = useState("");
+  const [draftMood, setDraftMood] = useState<string | null>(null);
+  const [managerOpen, setManagerOpen] = useState(false);
 
   const selKey = toKey(selected);
   const existing = data.moods.find((m) => m.date === selKey);
-  const [draftMood, setDraftMood] = useState<MoodScore | null>(null);
-
-  // Keep note/mood in sync when the selected day changes.
-  const activeMood = draftMood ?? existing?.mood ?? null;
+  const activeMoodId = draftMood ?? existing?.moodId ?? null;
+  const activeMood = findMoodType(types, activeMoodId);
 
   const points = useMemo<MoodPoint[]>(() => {
-    const map = new Map(data.moods.map((m) => [m.date, m.mood]));
+    const map = new Map(data.moods.map((m) => [m.date, m.moodId]));
     return Array.from({ length: 14 }, (_, i) => {
       const d = addDays(new Date(), -(13 - i));
+      const id = map.get(toKey(d));
       return {
         key: toKey(d),
         label: `${d.getDate()}`,
-        score: map.get(toKey(d)) ?? null,
+        moodId: id ?? null,
+        score: id ? moodValue(types, id) : null,
       };
     });
-  }, [data.moods]);
+  }, [data.moods, types]);
 
   const summary = useMemo(() => {
-    const avg = averageMood(data.moods);
-    const counts = new Map<MoodScore, number>();
-    for (const m of data.moods) counts.set(m.mood, (counts.get(m.mood) ?? 0) + 1);
-    let common: MoodScore = 3;
+    const avg = averageMood(data.moods, types);
+    const counts = new Map<string, number>();
+    for (const m of data.moods)
+      counts.set(m.moodId, (counts.get(m.moodId) ?? 0) + 1);
+    let commonId = types[0]?.id ?? "";
     let max = -1;
     counts.forEach((c, k) => {
       if (c > max) {
         max = c;
-        common = k;
+        commonId = k;
       }
     });
-    const sorted = [...data.moods].sort((a, b) => b.mood - a.mood);
-    const best = sorted[0];
-    const low = sorted[sorted.length - 1];
-    return { avg, common, best, low };
-  }, [data.moods]);
+    const sorted = [...data.moods].sort(
+      (a, b) => moodValue(types, b.moodId) - moodValue(types, a.moodId),
+    );
+    return { avg, common: findMoodType(types, commonId), best: sorted[0] };
+  }, [data.moods, types]);
 
   if (!hydrated) return <PageSkeleton />;
 
-  const selectMood = (score: MoodScore) => {
-    setDraftMood(score);
-    setMood(selKey, score, note || existing?.note || "");
-    toast(`Feeling ${moodDef(score).label.toLowerCase()} — logged`);
+  const selectMood = (id: string) => {
+    setDraftMood(id);
+    setMood(selKey, id, note || existing?.note || "");
+    toast(`Feeling ${findMoodType(types, id)?.label.toLowerCase() ?? "logged"} — logged`);
   };
 
   const saveNote = () => {
-    if (activeMood) {
-      setMood(selKey, activeMood, note);
+    if (activeMoodId) {
+      setMood(selKey, activeMoodId, note);
       toast("Note saved");
     }
   };
@@ -89,9 +94,14 @@ export default function MoodPage() {
         title="How are you feeling?"
         subtitle="Track your emotional patterns over time."
         right={
-          <span className="hidden sm:block">
-            <NotificationBell />
-          </span>
+          <>
+            <Button variant="secondary" onClick={() => setManagerOpen(true)}>
+              <Settings2 size={16} /> Manage moods
+            </Button>
+            <span className="hidden sm:block">
+              <NotificationBell />
+            </span>
+          </>
         }
       />
 
@@ -103,29 +113,33 @@ export default function MoodPage() {
           </div>
           <h3 className="mb-4 text-lg font-semibold text-ink">
             {activeMood
-              ? `You felt ${moodDef(activeMood).label.toLowerCase()}`
+              ? `You felt ${activeMood.label.toLowerCase()}`
               : "Pick your mood"}
           </h3>
 
           <div className="space-y-2">
-            {MOODS.map((m) => {
-              const on = activeMood === m.score;
+            {types.map((m) => {
+              const on = activeMoodId === m.id;
+              const Icon = getMoodIcon(m.icon);
               return (
                 <motion.button
-                  key={m.score}
+                  key={m.id}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => selectMood(m.score)}
+                  onClick={() => selectMood(m.id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
                     on ? "border-transparent" : "border-line hover:bg-surface-2",
                   )}
-                  style={on ? { backgroundColor: m.soft } : undefined}
+                  style={on ? { backgroundColor: moodSoft(m.color) } : undefined}
                 >
                   <span
                     className="grid h-10 w-10 place-items-center rounded-xl"
-                    style={{ backgroundColor: on ? "transparent" : m.soft, color: m.color }}
+                    style={{
+                      backgroundColor: on ? "transparent" : moodSoft(m.color),
+                      color: m.color,
+                    }}
                   >
-                    <m.icon size={22} />
+                    <Icon size={22} />
                   </span>
                   <span
                     className="text-[15px] font-semibold"
@@ -149,7 +163,7 @@ export default function MoodPage() {
               variant="secondary"
               className="mt-2 w-full"
               onClick={saveNote}
-              disabled={!activeMood}
+              disabled={!activeMoodId}
             >
               Save note
             </Button>
@@ -160,6 +174,7 @@ export default function MoodPage() {
         <div className="space-y-5 lg:col-span-2">
           <MoodCalendar
             moods={data.moods}
+            types={types}
             weekStartsMonday={data.preferences.weekStartsMonday}
             selected={selected}
             onSelect={changeDay}
@@ -168,7 +183,7 @@ export default function MoodPage() {
           <Card>
             <CardHeader title="Mood Trends" />
             {points.some((p) => p.score != null) ? (
-              <MoodTrendChart points={points} height={220} />
+              <MoodTrendChart points={points} types={types} height={220} />
             ) : (
               <p className="py-10 text-center text-sm text-ink-muted">
                 Log a few moods to see your trend line.
@@ -180,24 +195,109 @@ export default function MoodPage() {
             <SummaryTile
               label="Average Mood"
               value={summary.avg ? summary.avg.toFixed(1) : "—"}
-              caption={summary.avg ? moodDef(Math.round(summary.avg) as MoodScore).label : ""}
+              caption={
+                summary.avg && types.length
+                  ? types[Math.max(0, types.length - Math.round(summary.avg))]?.label ?? ""
+                  : ""
+              }
             />
             <SummaryTile
               label="Most Common"
-              value={data.moods.length ? moodDef(summary.common).label : "—"}
+              value={data.moods.length ? summary.common?.label ?? "—" : "—"}
             />
             <SummaryTile
               label="Best Day"
-              value={summary.best ? moodDef(summary.best.mood).label : "—"}
-              caption={summary.best ? formatLong(fromKey(summary.best.date)).replace(/,.*/, "") : ""}
+              value={
+                summary.best
+                  ? findMoodType(types, summary.best.moodId)?.label ?? "—"
+                  : "—"
+              }
+              caption={
+                summary.best
+                  ? formatLong(fromKey(summary.best.date)).replace(/,.*/, "")
+                  : ""
+              }
             />
-            <SummaryTile
-              label="Entries"
-              value={String(data.moods.length)}
-            />
+            <SummaryTile label="Entries" value={String(data.moods.length)} />
           </div>
+
+          {/* Recent entries — edit or delete any logged mood */}
+          {data.moods.length > 0 && (
+            <Card>
+              <CardHeader title="Recent Entries" />
+              <div className="no-scrollbar max-h-[320px] space-y-2 overflow-y-auto">
+                {[...data.moods]
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .map((m) => {
+                    const md = findMoodType(types, m.moodId);
+                    const MdIcon = md ? getMoodIcon(md.icon) : null;
+                    const activeRow = m.date === selKey;
+                    return (
+                      <div
+                        key={m.id}
+                        className={cn(
+                          "flex items-center gap-3 rounded-xl border p-2.5 transition-colors",
+                          activeRow ? "border-brand/40 bg-brand-soft/40" : "border-line",
+                        )}
+                      >
+                        <span
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+                          style={{
+                            backgroundColor: md ? moodSoft(md.color) : "rgb(var(--surface-2))",
+                            color: md?.color ?? "rgb(var(--ink-muted))",
+                          }}
+                        >
+                          {MdIcon && <MdIcon size={20} />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-ink">
+                              {md?.label ?? "Mood"}
+                            </span>
+                            <span className="text-[12px] text-ink-muted">
+                              {formatLong(fromKey(m.date))}
+                            </span>
+                          </div>
+                          {m.note && (
+                            <p className="truncate text-[12.5px] text-ink-soft">
+                              {m.note}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => {
+                            changeDay(fromKey(m.date));
+                            if (typeof window !== "undefined")
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                          aria-label={`Edit mood for ${m.date}`}
+                          title="Edit"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            deleteMood(m.date);
+                            if (m.date === selKey) setDraftMood(null);
+                            toast("Mood entry deleted", "info");
+                          }}
+                          className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+                          aria-label={`Delete mood for ${m.date}`}
+                          title="Delete"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
+
+      <MoodTypeManager open={managerOpen} onClose={() => setManagerOpen(false)} />
     </div>
   );
 }

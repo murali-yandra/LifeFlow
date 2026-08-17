@@ -5,7 +5,7 @@ import type { Habit } from "@/types";
 import { Modal } from "@/components/ui/Modal";
 import { getIcon } from "@/lib/icons";
 import { accent } from "@/lib/palette";
-import { mood as moodDef } from "@/lib/mood";
+import { findMoodType, getMoodIcon, moodSoft } from "@/lib/mood";
 import { isScheduled } from "@/lib/calculations";
 import { formatLong, toKey } from "@/lib/dates";
 import { useApp } from "@/context/AppContext";
@@ -30,7 +30,8 @@ export function DaySummary({
   const goalActivity = data.goals.filter((g) =>
     g.history.some((h) => h.date === key),
   );
-  const md = moodEntry ? moodDef(moodEntry.mood) : null;
+  const md = moodEntry ? findMoodType(data.moodTypes, moodEntry.moodId) : null;
+  const MdIcon = md ? getMoodIcon(md.icon) : null;
   const future = date > new Date();
 
   return (
@@ -42,12 +43,12 @@ export function DaySummary({
     >
       <div className="space-y-5">
         {/* Mood */}
-        {md && (
+        {md && MdIcon && (
           <div
             className="flex items-center gap-3 rounded-xl p-3"
-            style={{ backgroundColor: md.soft }}
+            style={{ backgroundColor: moodSoft(md.color) }}
           >
-            <md.icon size={22} color={md.color} />
+            <MdIcon size={22} color={md.color} />
             <div>
               <div className="text-sm font-semibold" style={{ color: md.color }}>
                 Felt {md.label.toLowerCase()}

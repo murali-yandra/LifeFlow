@@ -10,37 +10,40 @@ import { MoodTrendChart, type MoodPoint } from "@/components/mood/MoodTrendChart
 import { EmptyState } from "@/components/ui/Empty";
 import { Smile } from "lucide-react";
 import { addDays, toKey } from "@/lib/dates";
+import { moodValue } from "@/lib/mood";
 import { useApp } from "@/context/AppContext";
 
 type Range = "week" | "fortnight";
 
 export function MoodTracker({ moods }: { moods: MoodEntry[] }) {
   const { data } = useApp();
+  const types = data.moodTypes;
   const [range, setRange] = useState<Range>("week");
 
   const points = useMemo<MoodPoint[]>(() => {
-    const map = new Map(moods.map((m) => [m.date, m.mood]));
+    const map = new Map(moods.map((m) => [m.date, m.moodId]));
     const short = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const pointFor = (d: Date, label: string): MoodPoint => {
+      const id = map.get(toKey(d));
+      return {
+        key: toKey(d),
+        label,
+        moodId: id ?? null,
+        score: id ? moodValue(types, id) : null,
+      };
+    };
     if (range === "week") {
       // Trailing 7 days ending today, so the curve always reads left-to-right.
       return Array.from({ length: 7 }, (_, i) => {
         const d = addDays(new Date(), -(6 - i));
-        return {
-          key: toKey(d),
-          label: short[d.getDay()],
-          score: map.get(toKey(d)) ?? null,
-        };
+        return pointFor(d, short[d.getDay()]);
       });
     }
     return Array.from({ length: 14 }, (_, i) => {
       const d = addDays(new Date(), -(13 - i));
-      return {
-        key: toKey(d),
-        label: `${d.getDate()}`,
-        score: map.get(toKey(d)) ?? null,
-      };
+      return pointFor(d, `${d.getDate()}`);
     });
-  }, [moods, range, data.preferences.weekStartsMonday]);
+  }, [moods, range, types]);
 
   const hasData = points.some((p) => p.score != null);
 
@@ -60,7 +63,7 @@ export function MoodTracker({ moods }: { moods: MoodEntry[] }) {
         }
       />
       {hasData ? (
-        <MoodTrendChart points={points} />
+        <MoodTrendChart points={points} types={types} />
       ) : (
         <EmptyState
           icon={Smile}
