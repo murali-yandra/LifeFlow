@@ -27,11 +27,18 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-/** Items surfaced in the mobile bottom bar (kept to five for room). */
+/** Primary items shown directly in the mobile bottom bar. */
 export const MOBILE_NAV: NavItem[] = [
-  NAV_ITEMS[0],
-  NAV_ITEMS[1],
-  NAV_ITEMS[2],
-  NAV_ITEMS[3],
-  NAV_ITEMS[6],
+  NAV_ITEMS[0], // Dashboard
+  NAV_ITEMS[1], // Habits
+  NAV_ITEMS[2], // Mood
+  NAV_ITEMS[3], // Goals
+];
+
+/** Remaining items surfaced behind the mobile "More" menu. */
+export const MOBILE_MORE: NavItem[] = [
+  NAV_ITEMS[4], // Calendar
+  NAV_ITEMS[5], // Stats
+  NAV_ITEMS[6], // Journal
+  NAV_ITEMS[7], // Settings
 ];

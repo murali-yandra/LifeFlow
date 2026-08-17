@@ -62,7 +62,7 @@ export function DateSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-12 z-50 w-[300px] rounded-2xl border border-line bg-surface p-3 shadow-pop"
+            className="absolute left-0 top-12 z-50 w-[300px] max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-surface p-3 shadow-pop sm:left-auto sm:right-0"
           >
             <div className="mb-2 flex items-center justify-between px-1">
               <button
